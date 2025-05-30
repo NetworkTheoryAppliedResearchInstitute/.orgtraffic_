@@ -1,0 +1,22 @@
+{
+    "imap_server": "imap.gmail.com",
+    "imap_port": 993,
+    "search_folders": ["INBOX"],
+    "wix_sender_patterns": [
+        "@wix.com",
+        "analytics@wix.com",
+        "reports@wix.com"
+    ],
+    "subject_keywords": [
+        "Analytics Report",
+        "Traffic Summary",
+        "Website Analytics",
+        "Monthly Report"
+    ],
+    "attachment_types": [".csv", ".xlsx"],
+    "processing_rules": {
+        "skip_weekends": false,
+        "max_emails_per_run": 50,
+        "retention_days": 30
+    }
+}
