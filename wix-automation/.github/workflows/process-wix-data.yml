@@ -2,9 +2,15 @@ name: Process Wix Traffic Data
 
 on:
   schedule:
-    # Run daily at 6 AM UTC
+    # Run daily at 6 AM UTC - Note: Actual execution may be delayed 3-10 minutes
+    # Minimum interval is 5 minutes for scheduled workflows
     - cron: '0 6 * * *'
   workflow_dispatch: # Allow manual triggering
+
+# Set permissions for GITHUB_TOKEN
+permissions:
+  contents: write
+  actions: read
 
 jobs:
   process-wix-data:
@@ -15,47 +21,58 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
         
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r wix-automation/requirements.txt
         
     - name: Create Required Directories
       run: |
-        mkdir -p data/processed
-        mkdir -p logs
+        mkdir -p wix-automation/data/processed
+        mkdir -p wix-automation/logs
         
-    - name: Process Email Reports
+    - name: Process Wix Analytics Data
       env:
+        WIX_API_KEY: ${{ secrets.WIX_API_KEY }}
+        WIX_OAUTH_TOKEN: ${{ secrets.WIX_OAUTH_TOKEN }}
+        WIX_SITE_ID: ${{ secrets.WIX_SITE_ID }}
         EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
         GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
         REPO_ORGANIZATION: ${{ secrets.REPO_ORGANIZATION }}
         REPO_NAME: ${{ secrets.REPO_NAME }}
+      working-directory: wix-automation
       run: |
         python src/main_processor.py
         
     - name: Upload Processing Logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: processing-logs
-        path: logs/
+        name: processing-logs-${{ github.run_id }}
+        path: wix-automation/logs/
         retention-days: 30
         
-    - name: Notify on Failure
+    - name: Create Issue on Failure
       if: failure()
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           github.rest.issues.create({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            title: 'Wix Data Processing Failed',
-            body: 'The automated Wix traffic data processing workflow failed. Please check the logs for details.',
-            labels: ['automation', 'error']
+            title: `Wix Data Processing Failed - ${new Date().toISOString().split('T')[0]}`,
+            body: `The automated Wix traffic data processing workflow failed on ${new Date().toISOString()}. 
+            
+            **Run Details:**
+            - Run ID: ${context.runId}
+            - Workflow: ${context.workflow}
+            - Actor: ${context.actor}
+            
+            Please check the logs for details and verify API credentials and connectivity.`,
+            labels: ['automation', 'error', 'wix-integration']
           })
